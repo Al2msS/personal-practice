@@ -6,12 +6,12 @@ import uasyncio as asyncio
 
 ssid = "Al の iphone"
 password = ""
-
+#read HTML file on pico
 with open('index.html', 'r') as file:
     html = file.read()
 
 webdocs = "/webroot/"
-
+#read CSS file
 with open('style.css', 'r') as css_file:
     cssstring = css_file.read()
 
@@ -36,7 +36,7 @@ def connect_to_network():
         print('connected')
         status = wlan.ifconfig()
         print('ip = ' + status[0])
-
+#serve HTML and CSS file on pico
 async def serve_client(reader, writer):
     print("Client connected")
     request_line = await reader.readline()
@@ -97,4 +97,4 @@ async def start_server(ip):
 
 connect_to_network()
 
-asyncio.run(start_server("192.168.1.100")) 
+asyncio.run(start_server(" ")) # sever address
