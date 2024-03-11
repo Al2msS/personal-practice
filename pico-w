@@ -1,0 +1,100 @@
+import network
+import socket
+import time
+from machine import Pin
+import uasyncio as asyncio
+
+ssid = "Al の iphone"
+password = ""
+
+with open('index.html', 'r') as file:
+    html = file.read()
+
+webdocs = "/webroot/"
+
+with open('style.css', 'r') as css_file:
+    cssstring = css_file.read()
+
+wlan = network.WLAN(network.STA_IF)
+
+def connect_to_network():
+    wlan.active(True)
+    wlan.config(pm=0xa11140)  # Disable power-save mode
+    wlan.connect(ssid, password)
+
+    max_wait = 10
+    while max_wait > 0:
+        if wlan.status() < 0 or wlan.status() >= 3:
+            break
+        max_wait -= 1
+        print('waiting for connection...')
+        time.sleep(1)
+
+    if wlan.status() != 3:
+        raise RuntimeError('network connection failed')
+    else:
+        print('connected')
+        status = wlan.ifconfig()
+        print('ip = ' + status[0])
+
+async def serve_client(reader, writer):
+    print("Client connected")
+    request_line = await reader.readline()
+    print("Request:", request_line)
+
+    while await reader.readline() != b"\r\n":
+        pass
+
+    request = request_line.decode('utf-8')
+
+    css = request.find('.css')
+    response = html
+
+    if css > 0:
+        # b'GET /stylefile.css HTTP/1.1\r\n'
+        requestedfile = request[6:css + 4]
+        print("CSS requested:" + requestedfile)
+        css_file_path = webdocs + requestedfile
+
+        try:
+            with open(css_file_path, 'r') as css_file:
+                response = css_file.read()
+        except OSError as e:
+            print("Error reading CSS file:", e)
+
+        writer.write('HTTP/1.0 200 OK\r\nContent-type: text/css\r\n\r\n')
+        writer.write(response)
+    else:
+        writer.write('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
+        writer.write(response)
+
+    await writer.drain()
+    await writer.wait_closed()
+    print("Client disconnected")
+
+async def start_server(ip):
+
+    address = (ip, 80)
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    try:
+        server_socket.bind(address)
+        server_socket.listen(1)
+        print(f'Socket opened on {ip}')
+
+        while True:
+            client_socket, client_address = server_socket.accept()
+            reader, writer = await asyncio.open_connection(sock=client_socket)
+            asyncio.create_task(serve_client(reader, writer))
+
+    except OSError as e:
+        print("Error:", e)
+    finally:
+        server_socket.close()
+
+connect_to_network()
+
+asyncio.run(start_server("192.168.1.100")) 
